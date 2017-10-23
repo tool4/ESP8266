@@ -11,7 +11,7 @@
 // ssid.h should contain ssid and password defs, like this:
 //const char* ssid     = "********";
 //const char* password = "********";
-#include "ssid.h"
+#include <ssid.h>
 
 // Deep sleep mode doesn't seem to work, looks like ESP8266
 // right after reset (or waking from deep sleep) sets D7 PIN
@@ -45,9 +45,7 @@ void setup()
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
-#if VERBOSE
     Serial.print(".");
-#endif
   }
 
 #if VERBOSE
@@ -56,7 +54,9 @@ void setup()
 #endif
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  delay(10 * 1000);
+
+  Serial.println("Going to sleep for 17 seconds");
+  delay(17*1000);
 }
 
 int value = 0;
@@ -69,25 +69,6 @@ void loop()
   ++counter;
   bool motionDetected = false;
 
-  Serial.print("connecting to ");
-  Serial.println(host);
-
-  // Use WiFiClient class to create TCP connections
-  WiFiClient client;
-  const int httpPort = 80;
-  if (!client.connect(host, httpPort))
-  {
-    Serial.println("connection failed");
-#if DEEP_SLEEP
-    Serial.println("Going into deep sleep for 10 seconds");
-    ESP.deepSleep(10e6);
-#else
-    Serial.println("Going to sleep for 10 seconds");
-    delay(10 * 1000);
-    return;
-#endif
-  }
-
   // Experimental, idea is to track battery life this way
   // getting here values around 2.7V which doesn't seem right.
   float voltage=0.0f;
@@ -99,15 +80,18 @@ void loop()
   char voltage_str[10];
   dtostrf(voltage, 4, 2, voltage_str);
 
-  int pirState = digitalRead(D7);
-
-  // We now create a URI for the request
   String url = (String)"/esp/esp.php?name=ESP&VCC=" + voltage_str;
+
+  int pirState = digitalRead(D7);
 
   if( pirState == 1 )
   {
     url += "&motion=true";
     Serial.println("motion=true");
+    if( pirState != lastPIRstate )
+    {
+      motionDetected = true;
+    }
   }
   else
   {
@@ -115,13 +99,23 @@ void loop()
     Serial.println("motion=false");
   }
 
-  if( pirState != lastPIRstate )
-  {
-    motionDetected = true;
-  }
+  lastPIRstate = pirState;
 
   if( motionDetected || counter == 60 )
   {
+    Serial.print("connecting to ");
+    Serial.println(host);
+
+    // Use WiFiClient class to create TCP connections
+    WiFiClient client;
+    const int httpPort = 80;
+    if (!client.connect(host, httpPort))
+    {
+      Serial.println("connection failed");
+      Serial.println("Going into deep sleep for 10 seconds");
+      ESP.deepSleep(10e6);
+    }
+
     Serial.print("Requesting URL: ");
     Serial.println(url);
 
@@ -134,13 +128,9 @@ void loop()
     {
       if (millis() - timeout > 5000)
       {
-        Serial.println(">>> Client Timeout !");
+        Serial.println(">>> Client Timeout, resetting in 10 seconds !");
         client.stop();
-#if DEEP_SLEEP
         ESP.deepSleep(10e6);
-#else
-        delay(10*1000);
-#endif
       }
     }
 
@@ -156,7 +146,6 @@ void loop()
   }
   delay(1 * 1000);
   counter = counter % 60;
-  lastPIRstate = pirState;
 
   if( motionDetected)
   {
