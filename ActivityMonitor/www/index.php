@@ -1,4 +1,5 @@
 <?php
+
     while ($entry = fscanf($handle, "%d:%d:%d, %s %s %s %s %s\n"))
     {
         if( $entry[7] == "true" )
@@ -11,7 +12,7 @@
     foreach (glob("./logs/*.txt") as $filename) {
         $keywords = preg_split("/[\s\/.\"]+/", $filename);
         echo "<a href=bar.php?filename=" . $filename .
-             "> <font size=\"6\">" .
+             "> <font size=\"4\">" .
              $keywords[2] . "-" .
              $keywords[3] . "-" .
              $keywords[4] . "</font></a><br>\n";
